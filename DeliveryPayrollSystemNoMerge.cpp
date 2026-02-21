@@ -1,7 +1,6 @@
 #include <bits/stdc++.h> // includes all standard libraries
 using namespace std; // use std namespace
 using Timestamp = long long; // alias for time stored as epoch seconds
-
 class Driver { // class representing a single driver
 private:
     long long rate_per_hour_cents; // hourly rate stored in cents
@@ -9,7 +8,6 @@ private:
     long long total_accrued_cents; // total accrued earnings
 //==================================PART 2==============================================================
     Timestamp paid_upto_time; // boundary till which payment already done to avoid double pay
-
 public:
     Driver(double usd_hourly_rate = 0) { // constructor initializes driver state
         rate_per_hour_cents = llround(usd_hourly_rate * 100); // convert dollars to cents
@@ -78,17 +76,44 @@ public:
 };
 int main() { // program entry point
     PayrollSystem ps; // create payroll system
-
     ps.Add_driver(1, 20.0); // add driver 1 with $20/hour
     ps.Add_driver(2, 30.0); // add driver 2 with $30/hour
-
     ps.Record_delivery(1, 100, 200); // delivery 1 for driver 1
     ps.Record_delivery(1, 100, 300); // another delivery with same start time (handled correctly)
     ps.Record_delivery(2, 0, 7200); // 2 hour delivery for driver 2
-
     cout << "Total Cost Accrued: $" << ps.Get_Total_Cost() << endl; // print accrued
     cout << "Paid Now: $" << ps.Pay_Up_To(250) << endl; // pay up to time boundary
     cout << "Unpaid Cost: $" << ps.Total_Cost_Unpaid() << endl; // print remaining unpaid
-
     return 0; // exit program
+}
+
+
+//================================================PART 3=====================================
+// Function to compute the maximum number of active drivers in last 24 hours
+// Time Complexity: O(N log N) where N = total deliveries across all drivers
+int get_max_active_drivers_in_last_24_hours(Timestamp currentTime) {
+    Timestamp window_start = currentTime - 24 * 3600; // compute start of 24-hour window (24 hours = 86400 seconds)
+    vector<pair<Timestamp,int>> events; // stores events: {time, +1 for start, -1 for end}
+    for (auto &p : drivers) { // iterate over all drivers in the system
+        Driver &d = p.second; // extract reference to Driver object
+        for (auto &del : d.deliveries) { // iterate over all deliveries of this driver
+            Timestamp s = max(del.first, window_start); // clip delivery start to window start
+            Timestamp e = min(del.second, currentTime); // clip delivery end to current time
+            if (s < e) { // check if delivery overlaps with the 24-hour window
+                events.push_back({s, +1}); // driver becomes active at time s
+                events.push_back({e, -1}); // driver becomes inactive at time e
+            }
+        }
+    }
+    sort(events.begin(), events.end(), // sort events by time for sweep line processing
+         [](auto &a, auto &b){ // custom comparator lambda
+             if (a.first == b.first) return a.second < b.second; // if same time, process end(-1) before start(+1)
+             return a.first < b.first; // otherwise sort by timestamp
+         });
+    int active = 0, maxActive = 0; // active = current active drivers, maxActive = peak count
+    for (auto &e : events) { // iterate through events in chronological order
+        active += e.second; // update active count (+1 start, -1 end)
+        maxActive = max(maxActive, active); // update maximum active drivers seen so far
+    }
+    return maxActive; // return peak number of active drivers in last 24 hours
 }
