@@ -1,4 +1,8 @@
-#include <bits/stdc++.h> // includes all standard headers
+#include <iostream>        // cout, endl
+#include <string>          // string
+#include <unordered_map>   // unordered_map
+#include <unordered_set>   // unordered_set
+#include <vector>          // vector
 using namespace std; // using standard namespace
 class KeyValueStore{ // class definition
 private:
@@ -36,6 +40,7 @@ private:
     bool inTransaction=false; // flag for active transaction   
 public:
     string get(string key){ // returns value for a key
+        // ================= PART 2=================================
         if(inTransaction){ // if transaction active
             if(deletedKeys.count(key)) return ""; // if deleted inside transaction return empty
             if(transactionStore.find(key)!=transactionStore.end()) return transactionStore[key]; // check transaction layer first
@@ -44,6 +49,7 @@ public:
         return ""; // if not found
     }
     void set(string key,string value){ // sets value
+        // ================= PART 2=================================
         if(inTransaction){ // if inside transaction
             transactionStore[key]=value; // update transaction layer
             deletedKeys.erase(key); // remove from delete set if exists
@@ -52,6 +58,7 @@ public:
         }
     }
     void deleteKey(string key){ // deletes key
+        // ================= PART 2=================================
         if(inTransaction){ // if inside transaction
             transactionStore.erase(key); // remove from transaction updates
             deletedKeys.insert(key); // mark as deleted
@@ -79,7 +86,6 @@ public:
         deletedKeys.clear(); // discard deletes
     }
 };
-
 int main(){ // Time Complexity: get/set/delete O(1) avg, commit O(n)
     KeyValueStore kv; // create object
     kv.set("a","10"); // base value
@@ -93,15 +99,12 @@ int main(){ // Time Complexity: get/set/delete O(1) avg, commit O(n)
 //===================================================================3rd part================================================================================
 #include <bits/stdc++.h> // includes all standard headers
 using namespace std; // using standard namespace
-
 class KeyValueStore{ // class definition
 private:
     unordered_map<string,string> store; // ================= PART 1: main committed storage =================
-    
     // ================= PART 2 + PART 3: nested transactions =================
     vector<unordered_map<string,string>> txnStack; // stack of transaction update layers
     vector<unordered_set<string>> deleteStack; // stack of delete layers
-    
 public:
     string get(string key){ // returns value for key
         for(int i=txnStack.size()-1;i>=0;i--){ // traverse from most recent transaction
