@@ -1,5 +1,9 @@
 //=========================================================================FIRST PART======================================================================================
-#include <bits/stdc++.h> // includes all standard libraries
+#include <iostream>     // cout
+#include <unordered_map> // unordered_map
+#include <string>       // string, stoll
+#include <stdexcept>    // runtime_error
+#include <cctype>       // isalpha, isdigit
 using namespace std; // use std namespace
 class Cell { // class representing a single cell
 private:
@@ -73,6 +77,7 @@ public:
 class Spreadsheet { // spreadsheet container
 private:
     unordered_map<string, Cell> cells; // cell name -> Cell mapping
+//=====================================================PART 2=====================================================================
     bool isCellReference(string token) { // checks if token like A1
         if (token.empty()) return false; // invalid if empty
         int i = 0; // index pointer
@@ -81,17 +86,16 @@ private:
         while (i < token.size()) if (!isdigit(token[i++])) return false; // check digits
         return true; // valid cell reference
     }
+//=====================================================PART 2=====================================================================
     long long getCellValue(string cell) { // return stored computed value
         if (!cells.count(cell)) return 0; // return 0 if cell not present
         return cells[cell].getComputed(); // return stored value
     }
     long long evaluate(string expr) { // Time: O(n)
         if (expr.empty()) throw runtime_error("Empty expression"); // validation check
-
         long long result = 0; // final result
         long long sign = 1; // current sign
         string token = ""; // number or cell reference
-
         for (char c : expr) { // iterate characters
             if (c == '+' || c == '-') { // operator encountered
                 if (!token.empty()) { // process token
@@ -138,5 +142,14 @@ int main() { // program entry point
     sheet.print(); // print cells
     return 0; // exit
 }
+
+//======================================================PART 3=============================================================
+
+/* 
+We model the spreadsheet as a dependency graph, where each cell points to the cells that depend on it. 
+When a cell’s value changes, we update its value and use BFS (topological propagation) to recompute all 
+dependent cells in the correct order. This ensures parent cells are updated before their children and avoids 
+repeated recomputation. The approach also scales well and can be extended to detect cyclic dependencies.
+*/
 
 
