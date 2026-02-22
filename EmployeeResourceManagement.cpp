@@ -1,13 +1,12 @@
-#include <bits/stdc++.h> // includes all standard libraries
+#include <iostream>        // input output
+#include <unordered_map>   // unordered_map
+#include <unordered_set>   // unordered_set
+#include <vector>          // vector
+#include <string>          // string
+#include <optional>        // optional (C++17+)
 using namespace std; // use std namespace
 // Enum representing different access types
 enum class AccessType { READ, WRITE, ADMIN }; // strongly typed access permissions
-// Utility function to convert AccessType to string (for printing/debugging)
-string accessTypeToString(AccessType type) { // Time: O(1)
-    if (type == AccessType::READ) return "READ"; // check READ
-    if (type == AccessType::WRITE) return "WRITE"; // check WRITE
-    return "ADMIN"; // otherwise ADMIN
-}
 //============================== ACCESS MANAGEMENT SYSTEM =============================================
 class EmployeeAccessManagementSystem { // main system managing employee-resource access
 private:
