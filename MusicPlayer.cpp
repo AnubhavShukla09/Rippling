@@ -1,4 +1,10 @@
-#include <bits/stdc++.h>
+#include <iostream>
+#include <unordered_map>
+#include <unordered_set>
+#include <set>
+#include <list>
+#include <vector>
+#include <string>
 using namespace std;
 // ========================== SONG ENTITY ==========================
 class Song{
@@ -18,99 +24,117 @@ class MusicPlayerService{
 private:
     int nextSongId; // auto-increment id starting from 1
     unordered_map<int,Song*> songs; // songId -> Song object
+    unordered_map<int,string> idToTitle; // songId -> song title
     // ------------------ PART 1 : UNIQUE USER ANALYTICS ------------------
     unordered_map<int,unordered_set<int>> songToUsers; // songId -> unique users
-    set<pair<int,int>> sortedSongs; // (uniqueCount, songId) sorted ascending
-    // ------------------ PART 2 : RECENTLY PLAYED ------------------
+    set<pair<int,string>> sortedSongs;
+    // ------------------ PART 2 : RECENTLY PLAYED (LRU STYLE) ------------------
     unordered_map<int,list<int>> userRecentList; // userId -> recent songs
     unordered_map<int,unordered_map<int,list<int>::iterator>> userRecentMap; // userId -> iterator map
-    // ------------------ PART 3 : STARRED SONGS ------------------
-    unordered_map<int,unordered_set<int>> userStarredSongs; // userId -> starred songs
+    // ------------------ PART 3 : FAVORITES WITH FIXED CAPACITY = 3 ------------------
+    static const int FAVORITE_CAPACITY = 3; // fixed capacity
+    unordered_map<int,list<int>> userFavoritesList; // userId -> favorite songs order
+    unordered_map<int,unordered_map<int,list<int>::iterator>> userFavoritesMap; // userId -> iterator map
 public:
     MusicPlayerService(){ // Time: O(1)
         nextSongId=1; // initialize id counter
     }
+    // ========================== ADD SONG ==========================
     int add_song(string title){ // Time: O(log S)
-        int id=nextSongId++; // generate id
+        int id=nextSongId++; // generate new id
         songs[id]=new Song(id,title); // create Song object
+        idToTitle[id]=title; // store title for sorting
         songToUsers[id]={}; // initialize analytics set
-        sortedSongs.insert({0,id}); // insert with 0 unique count
-        return id; // return id
+        sortedSongs.insert({0,title}); // insert with 0 unique listeners
+        return id; // return assigned id
     }
+    // ========================== PLAY SONG ==========================
     void play_song(int userId,int songId){ // Time: O(log S)
-        if(!songs.count(songId)){ // validate song
-            cout<<"Invalid songId"<<endl; // error
-            return; // exit
-        }
-        // ---------- PART 1 : ANALYTICS ----------
-        auto &users=songToUsers[songId]; // reference unique user set
-        if(users.find(userId)==users.end()){ // if new unique user
-            int oldCount=users.size(); // get old count
-            sortedSongs.erase({oldCount,songId}); // remove old pair
-            users.insert(userId); // insert user
-            int newCount=users.size(); // updated count
-            sortedSongs.insert({newCount,songId}); // insert updated pair
-        }
-        // ---------- PART 2 : RECENTLY PLAYED ----------
-        auto &recentList=userRecentList[userId]; // get recent list
-        auto &recentMap=userRecentMap[userId]; // get iterator map
-        if(recentMap.find(songId)!=recentMap.end()) // if already present
-            recentList.erase(recentMap[songId]); // remove old position
-        recentList.push_front(songId); // insert at front
-        recentMap[songId]=recentList.begin(); // update iterator
-    }
-    void print_analytics(int k){ // Time: O(k)
-        cout<<"Top "<<k<<" Songs by unique users:"<<endl; // heading
-        int count=0; // counter
-        for(auto it=sortedSongs.rbegin();it!=sortedSongs.rend()&&count<k;++it){ // iterate descending
-            cout<<songs[it->second]->getTitle()<<" | Unique Users: "<<it->first<<endl; // print
-            count++; // increment
-        }
-    }
- // ---------- PART 2 : RECENTLY PLAYED ----------
-    vector<int> getLastThreeSongs(int userId){ // Time: O(1)
-        vector<int> result; // result container
-        if(userRecentList.find(userId)==userRecentList.end()) // if no history
-            return result; // return empty
-        int count=0; // counter
-        for(int songId:userRecentList[userId]){ // iterate recent list
-            if(count==3) break; // stop after 3
-            result.push_back(songId); // add id
-            count++; // increment
-        }
-        return result; // return vector
-    }
-    // ---------- PART 3 : STAR / UNSTAR ----------
-    void star_song(int userId,int songId){ // Time: O(1)
-        if(!songs.count(songId)){ // validate song
-            cout<<"Invalid songId"<<endl; // error
+        if(!songs.count(songId)){ // validate song id
+            cout<<"Error: Song ID "<<songId<<" does not exist."<<endl;
             return;
         }
-        userStarredSongs[userId].insert(songId); // add song to starred set
-    }
-    void unstar_song(int userId,int songId){ // Time: O(1)
-        if(userStarredSongs.count(userId)) // if user exists
-            userStarredSongs[userId].erase(songId); // remove from starred set
-    }
-    vector<int> getLastNFavouriteSongs(int userId,int k){ // Time: O(N)
-        vector<int> result; // store result
-        if(userRecentList.find(userId)==userRecentList.end()) // if no history
-            return result; // return empty
-        int count=0; // counter
-        for(int songId:userRecentList[userId]){ // iterate recent list
-            if(count==k) break; // stop at k
-            if(userStarredSongs[userId].count(songId)){ // if song is starred
-                result.push_back(songId); // add to result
-                count++; // increment
-            }
+        // ---------- PART 1 : UNIQUE LISTENER ANALYTICS ----------
+        auto &users=songToUsers[songId]; // reference unique user set
+        string title=idToTitle[songId]; // get song title
+        if(users.find(userId)==users.end()){ // if new unique user
+            int oldCount=users.size(); // old unique count
+            sortedSongs.erase({oldCount,title}); // remove old entry
+            users.insert(userId); // add user
+            int newCount=users.size(); // updated count
+            sortedSongs.insert({newCount,title}); // insert updated entry
         }
-        return result; // return favourite songs
+        // ---------- PART 2 : RECENTLY PLAYED (MOVE TO FRONT) ----------
+        auto &recentList=userRecentList[userId]; // get user's list
+        auto &recentMap=userRecentMap[userId]; // iterator map
+        if(recentMap.find(songId)!=recentMap.end()) // if already present
+            recentList.erase(recentMap[songId]); // remove old position
+        recentList.push_front(songId); // insert at front (most recent)
+        recentMap[songId]=recentList.begin(); // update iterator
+    }
+    // ========================== PART 1 ==========================
+    void print_analytics(){ // Time: O(S)
+        for(auto it=sortedSongs.rbegin(); it!=sortedSongs.rend(); ++it){
+            cout<<it->second<<" ("<<it->first<<" unique listeners)"<<endl;
+        }
+    }
+    // ========================== PART 2 : GET RECENT SONGS ==========================
+    vector<int> getRecentSongs(int userId,int k){ // Time: O(k)
+        vector<int> result;
+        if(userRecentList.find(userId)==userRecentList.end()) return result; // no history
+        int count=0;
+        for(int songId:userRecentList[userId]){
+            if(count==k) break;
+            result.push_back(songId);
+            count++;
+        }
+        return result;
+    }
+    // ========================== PART 3 : ADD FAVORITE ==========================
+    /*
+        Adds favorite with capacity = 3.
+        If full -> removes oldest.
+        LRU style.
+    */
+    void addFavorite(int userId,int songId){ // Time: O(1)
+        if(!songs.count(songId)){
+            cout<<"Error: Song ID "<<songId<<" does not exist."<<endl;
+            return;
+        }
+        auto &favList=userFavoritesList[userId];
+        auto &favMap=userFavoritesMap[userId];
+        if(favMap.count(songId)) return; // already favorite
+        if(favList.size()==FAVORITE_CAPACITY){ // remove oldest
+            int last=favList.back();
+            favMap.erase(last);
+            favList.pop_back();
+        }
+        favList.push_front(songId); // add newest
+        favMap[songId]=favList.begin();
+    }
+    // ========================== REMOVE FAVORITE ==========================
+    void removeFavorite(int userId,int songId){ // Time: O(1)
+        if(!userFavoritesMap.count(userId)) return;
+        auto &favMap=userFavoritesMap[userId];
+        auto &favList=userFavoritesList[userId];
+        if(!favMap.count(songId)) return;
+        favList.erase(favMap[songId]);
+        favMap.erase(songId);
+    }
+    // ========================== LIST FAVORITES ==========================
+    vector<int> listFavorites(int userId){ // Time: O(3) = O(1)
+        vector<int> result;
+        if(!userFavoritesList.count(userId)) return result;
+        for(int songId:userFavoritesList[userId])
+            result.push_back(songId);
+        return result;
     }
 };
-// ========================== MAIN ==========================
 
-int main(){ // Time: O(n log S)
-    MusicPlayerService service; // create service
+
+// ========================== MAIN ==========================
+int main(){ // Time: O(N log S)
+    MusicPlayerService service;
     int s1=service.add_song("Song A");
     int s2=service.add_song("Song B");
     int s3=service.add_song("Song C");
@@ -119,11 +143,16 @@ int main(){ // Time: O(n log S)
     service.play_song(1,s3);
     service.play_song(2,s1);
     service.play_song(1,s2); // replay
-    service.star_song(1,s1); // star
-    service.star_song(1,s3); // star
-    service.print_analytics(3);
-    vector<int> fav=service.getLastNFavouriteSongs(1,2);
-    cout<<"Last 2 Favourite Songs for user 1: ";
+    service.addFavorite(1,s1);
+    service.addFavorite(1,s3);
+    cout<<"--- Analytics ---"<<endl;
+    service.print_analytics();
+    cout<<"--- Recent Songs (User 1) ---"<<endl;
+    vector<int> recent=service.getRecentSongs(1,3);
+    for(int id:recent) cout<<id<<" ";
+    cout<<endl;
+    cout<<"--- Favorites (User 1) ---"<<endl;
+    vector<int> fav=service.listFavorites(1);
     for(int id:fav) cout<<id<<" ";
     cout<<endl;
     return 0;
