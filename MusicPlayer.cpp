@@ -24,7 +24,6 @@ class MusicPlayerService{
 private:
     int nextSongId; // auto-increment id starting from 1
     unordered_map<int,Song*> songs; // songId -> Song object
-    unordered_map<int,string> idToTitle; // songId -> song title
     // ------------------ PART 1 : UNIQUE USER ANALYTICS ------------------
     unordered_map<int,unordered_set<int>> songToUsers; // songId -> unique users
     set<pair<int,string>> sortedSongs;
@@ -43,7 +42,6 @@ public:
     int add_song(string title){ // Time: O(log S)
         int id=nextSongId++; // generate new id
         songs[id]=new Song(id,title); // create Song object
-        idToTitle[id]=title; // store title for sorting
         songToUsers[id]={}; // initialize analytics set
         sortedSongs.insert({0,title}); // insert with 0 unique listeners
         return id; // return assigned id
@@ -56,7 +54,7 @@ public:
         }
         // ---------- PART 1 : UNIQUE LISTENER ANALYTICS ----------
         auto &users=songToUsers[songId]; // reference unique user set
-        string title=idToTitle[songId]; // get song title
+        string title = songs[songId]->getTitle(); // get song title
         if(users.find(userId)==users.end()){ // if new unique user
             int oldCount=users.size(); // old unique count
             sortedSongs.erase({oldCount,title}); // remove old entry
