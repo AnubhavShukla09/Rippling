@@ -1,83 +1,74 @@
-#include<map>
-#include<string>
-#include<unordered_set>
-#include<set>
 #include<iostream>
-#include<list>
+#include<map>
+#include <cmath>
 using namespace std;
-class SongAnalytics {
+using Timestamp = long long;
+class PayrollSystem {
    private:
-       int nextId = 1;
-       unordered_map<int, string>songIdToName;
-       unordered_map<int, unordered_set<int>>songToUser;
-       map<int, set<pair<string, int>>, greater<int>>leaderboard; //map {score->song name, id in asc order}
-       unordered_map<int, list<int>>userRecentSongList; //list of recent songs in order
-       unordered_map<int, unordered_map<int, list<int>::iterator>>userRecentSongMap; //map of song_id to address in the list
+       unordered_map<int, long long>drivers; //driver_id->rate in cents
+       map<Timestamp, vector<long long>>deliveries; //endTime->list of cost
+       long long total_cost_cents = 0;
+       long long paid_till_now_cents = 0;
    public:
-       //Adds a song to the system, assigns it a unique auto-incrementing ID starting from 1, and returns the assigned ID.
-       int add_song(string name) { //O(log n)
-           int id = nextId++;
-           songIdToName[id] = name;
-           songToUser[id] = {};
-           leaderboard[0].insert({name, id}); //O(log n)
-           return id;
-       }
        /*
-       Records a play event for a song by a user.
-       If song_id does not exist, output: Error: Song ID <song_id> does not exist. (replace <song_id> with the invalid ID).
-       Each user is counted once per song, even if they play it multiple times. (unique plays)
+       The given driver will not already be in the system
+       The hourly rate applies per delivery, and a driver can be paid for simultaneous deliveries
        */
-       void play_song(int song_id, int user_id) { //O(log n)
-           if(!songIdToName.count(song_id)) {
-               cout<<"Error: Song ID "<<song_id <<" does not exist.";
+       void add_driver(int driver_id, float usd_hourly_rate) {
+           if(drivers.count(driver_id)) {
+               cout<<"Driver already added to the system"<< endl;
                return;
            }
-           if(!songToUser[song_id].count(user_id)) {
-               int curr_score = songToUser[song_id].size();
-               string name = songIdToName[song_id];
-               leaderboard[curr_score].erase({name, song_id}); //O(log n)
-               if(leaderboard[curr_score].size()==0)leaderboard.erase(curr_score);
-               songToUser[song_id].insert(user_id);
-               int new_score = curr_score+1;
-               leaderboard[new_score].insert({name, song_id}); //O(log n)
-           }
-           auto &recentSongs = userRecentSongList[user_id];
-           auto &recentSongsMap = userRecentSongMap[user_id];
-           if(recentSongsMap.count(song_id))
-               recentSongs.erase(recentSongsMap[song_id]);
-           recentSongs.push_front(song_id);
-           recentSongsMap[song_id] = recentSongs.begin();
-           if(recentSongs.size()>3) {
-               int lastSong = recentSongs.back();
-               recentSongs.pop_back();
-               recentSongsMap.erase(lastSong);
-           }
+           drivers.emplace(driver_id, llround(usd_hourly_rate*100));
+           cout<<"Driver added successfully to the system"<< endl;
        }
        /*
-       Prints a summary of all songs sorted by the number of unique listeners in descending order.
-       If two songs have the same number of unique listeners, sort them lexicographically by name in ascending order.
-       Each line in the output should follow the format: <song_name> (<count> unique listeners)
+       Discuss the time format you choose
+       Times require minimum one-second precision
+       The given driver will already be in the system
+       All deliveries will be recorded immediately after the delivery is completed
        */
-       void print_analytics() { // O(n)
-           for(auto &entry: leaderboard) { // O(n)
-               int score = entry.first;
-               for(auto &song: entry.second) {
-                   cout<<song.first << " (" << score << " unique listeners)" << endl;
+       void record_delivery(int driver_id, Timestamp start, Timestamp end) {
+           if(!drivers.count(driver_id)) {
+               cout<<"This driver is not added to the system"<< endl;
+               return;
+           }
+           long long hourly_rate_in_cents = drivers[driver_id];
+           long long cost_cents = ((end-start)*hourly_rate_in_cents)/3600;
+           deliveries[end].push_back(cost_cents);
+           total_cost_cents+=cost_cents;
+           cout<<"Delivery recorded"<< endl;
+           return;
+       }
+       /*
+       Return the total, aggregated cost of all drivers' deliveries recorded in the system
+       For example, return 135.30 if one driver is in the system and has a total cost of 100.30 USD and another driver is in the system and has a total cost of 35.00 USD.
+       This will be used for a live dashboard
+       Do not worry about exact formatting
+       */
+       void get_total_cost() {
+           cout<< "The total cost of all the deliveries is" << total_cost_cents/100.0<<endl;
+           return;
+       }
+       // Pay all drivers for recorded deliveries which ended up to and including the given time
+       void pay_up_to(Timestamp paytime) {
+           auto cutoff = deliveries.upper_bound(paytime);
+           long long paid_now = 0;
+           auto it = deliveries.begin();
+           while(it!=cutoff) {
+               for(auto &cost:it->second) {
+                   paid_now+=cost;
                }
+               it = deliveries.erase(it);
            }
-           return;
+           paid_till_now_cents+=paid_now;
+           cout<<"Paid up to time: " << paytime << " amount: " << paid_now/100.0 << endl;
        }
-       // get last 3 unique songs played by a given user
-       void get_last_three_songs(int user_id) { //O(1)
-           if(!userRecentSongList.count(user_id)) {
-               cout<<"User has not listened to any song"<<endl;
-               return;
-           }
-           cout<<"Top 3 songs for user: "<<user_id<<" are: "<<endl;
-           for(int song_id: userRecentSongList[user_id]) {
-               cout<<songIdToName[song_id]<<endl;
-           }
-           return;
+
+
+       // Return the total, aggregated cost of all drivers' deliveries which have not been paid
+       void get_total_cost_unpaid() {
+           cout<<"The total unpaid cost is " << (total_cost_cents - paid_till_now_cents)/100.0 <<endl;
        }
 };
 int main() {
