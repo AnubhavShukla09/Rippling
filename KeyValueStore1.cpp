@@ -1,6 +1,7 @@
 #include<unordered_map>
 #include<unordered_set>
 #include<iostream>
+#include<optional>
 using namespace std;
 class KeyValueStore {
 private:
@@ -10,19 +11,19 @@ private:
    bool inTransaction = false; // indicates whether we are currently inside a transaction
 public:
    // Time Complexity: O(1)
-   string get(string key) {
+   optional<string> get(string key) {
        if(inTransaction) { // if a transaction is active
            if(deletedKeys.count(key)) // if key deleted in transaction, treat as non-existent
-               return "";
+               return nullopt;
            if(txstore.count(key)) // if key updated in transaction, return updated value
                return txstore[key];
-           if(store.count(key)) // otherwise check original store
+           if(store.count(key)) // outside transaction, read directly from store
                return store[key];
-           return ""; // key not found anywhere
+           return nullopt; // key not found
        }
        if(store.count(key)) // outside transaction, read directly from store
            return store[key];
-       return ""; // key not found
+       return nullopt; // key not found
    }
 
 
@@ -77,6 +78,7 @@ public:
    void rollback() {
        if(!inTransaction) { // rollback without active transaction
            cout<<"Not in transaction";
+           return;
        }
        inTransaction = false; // exit transaction mode
        txstore.clear(); // discard all transaction updates
@@ -89,103 +91,84 @@ int main() {
    KeyValueStore kv;
 
 
+   // helper lambda to print optional
+   auto print = [](optional<string> val) {
+       if(val) cout << *val << endl;
+       else cout << "NULL" << endl;
+   };
+
+
    cout << "---- Basic SET/GET ----" << endl;
+   kv.set("A", "10");
 
 
-   kv.set("A", "10"); // set key A to value 10
-   cout << "A = " << kv.get("A") << endl; // retrieve A
+   cout << "A = ";
+   print(kv.get("A")); // expect 10
 
 
    cout << "\n---- Transaction SET ----" << endl;
+   kv.begin();
+   kv.set("A", "20");
 
 
-   kv.begin(); // start transaction
-   kv.set("A", "20"); // update A inside transaction
+   cout << "A inside transaction = ";
+   print(kv.get("A")); // expect 20
 
 
-   cout << "A inside transaction = " << kv.get("A") << endl; // should return 20
+   kv.commit();
 
 
-   kv.commit(); // commit transaction changes
+   cout << "A after commit = ";
+   print(kv.get("A")); // expect 20
 
 
-   cout << "A after commit = " << kv.get("A") << endl; // should persist as 20
+   cout << "\n---- Transaction DELETE + ROLLBACK ----" << endl;
+   kv.begin();
+   kv.deleteKey("A");
 
 
+   cout << "A after delete (txn) = ";
+   print(kv.get("A")); // expect NULL
 
 
-   cout << "\n---- Transaction DELETE ----" << endl;
+   kv.rollback();
 
 
-   kv.begin(); // start new transaction
-   kv.deleteKey("A"); // delete A inside transaction
-
-
-   cout << "A after delete in transaction = " << kv.get("A") << endl; // should return empty
-
-
-   kv.rollback(); // discard transaction
-
-
-   cout << "A after rollback = " << kv.get("A") << endl; // should restore original value
-
-
+   cout << "A after rollback = ";
+   print(kv.get("A")); // expect 20
 
 
    cout << "\n---- New Key in Transaction ----" << endl;
+   kv.begin();
+   kv.set("B", "50");
 
 
-   kv.begin(); // begin transaction
+   cout << "B inside txn = ";
+   print(kv.get("B")); // expect 50
 
 
-   kv.set("B", "50"); // create new key B
+   kv.commit();
 
 
-   cout << "B inside transaction = " << kv.get("B") << endl; // visible inside transaction
-
-
-   kv.commit(); // commit changes
-
-
-   cout << "B after commit = " << kv.get("B") << endl; // should persist
-
-
+   cout << "B after commit = ";
+   print(kv.get("B")); // expect 50
 
 
    cout << "\n---- Delete and Commit ----" << endl;
+   kv.begin();
+   kv.deleteKey("B");
+   kv.commit();
 
 
-   kv.begin(); // start transaction
-   kv.deleteKey("B"); // delete B
+   cout << "B after delete commit = ";
+   print(kv.get("B")); // expect NULL
 
 
-   kv.commit(); // commit deletion
-
-
-   cout << "B after delete commit = " << kv.get("B") << endl; // should be empty
-
-
-
-
-   cout << "\n---- Rollback Test ----" << endl;
-
-
-   kv.begin(); // begin transaction
-
-
-   kv.set("C", "100"); // add new key C
-
-
-   cout << "C inside transaction = " << kv.get("C") << endl; // visible inside transaction
-
-
-   kv.rollback(); // discard transaction
-
-
-   cout << "C after rollback = " << kv.get("C") << endl; // should not exist
-
-
+   cout << "\n---- Non-existent Key ----" << endl;
+   cout << "C = ";
+   print(kv.get("C")); // expect NULL
 
 
    return 0;
 }
+
