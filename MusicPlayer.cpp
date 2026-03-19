@@ -80,6 +80,27 @@ public:
        }
        return;
    }
+   // Return top K songs based on unique listeners
+   // Time Complexity: O(K)
+   void get_top_k_songs(int k) {
+       if(k <= 0) {
+           cout << "Invalid value of K" << endl;
+           return;
+       }
+       cout << "Top " << k << " songs are:" << endl;
+       int count = 0;
+       for(auto &entry : leaderboard) { // scores in descending order
+           int score = entry.first;
+           for(auto &song : entry.second) { // lexicographically sorted
+               cout << song.first << " (" << score << " unique listeners)" << endl;
+               count++;
+               if(count == k) return; // stop once K songs are printed
+           }
+       }
+       if(count == 0) {
+           cout << "No songs available" << endl;
+       }
+   }
    // Return last 3 unique songs played by a user
    // Time Complexity: O(1)
    void get_last_three_songs(int user_id) {
@@ -96,32 +117,16 @@ public:
 };
 
 
-
-
-
-
 int main() {
-
-
    SongAnalytics sa;
-
-
    cout << "---- Adding Songs ----" << endl;
-
-
-   int s1 = sa.add_song("ShapeOfYou"); // add song 1
-   int s2 = sa.add_song("BlindingLights"); // add song 2
-   int s3 = sa.add_song("Believer"); // add song 3
-   int s4 = sa.add_song("Closer"); // add song 4
-
-
+   int s1 = sa.add_song("ShapeOfYou");       // add song 1
+   int s2 = sa.add_song("BlindingLights");   // add song 2
+   int s3 = sa.add_song("Believer");         // add song 3
+   int s4 = sa.add_song("Closer");           // add song 4
    cout << "Songs added with IDs: "
         << s1 << " " << s2 << " " << s3 << " " << s4 << endl;
-
-
    cout << "\n---- Recording Plays ----" << endl;
-
-
    sa.play_song(s1, 101); // user 101 plays song 1
    sa.play_song(s1, 102); // user 102 plays song 1
    sa.play_song(s2, 101); // user 101 plays song 2
@@ -129,40 +134,20 @@ int main() {
    sa.play_song(s3, 102); // user 102 plays song 3
    sa.play_song(s3, 103); // user 103 plays song 3
    sa.play_song(s4, 104); // user 104 plays song 4
-
-
    // duplicate play (should not increase unique count)
    sa.play_song(s1, 101);
-
-
    cout << "\n---- Leaderboard ----" << endl;
-
-
    sa.print_analytics(); // display leaderboard
-
-
-
-
+   cout << "\n---- Top 2 Songs ----" << endl;
+   sa.get_top_k_songs(2); // test top K
    cout << "\n---- User Recent Songs ----" << endl;
-
-
-   sa.get_last_three_songs(101); // show last 3 songs for user 101
-   sa.get_last_three_songs(102); // show last 3 songs for user 102
+   sa.get_last_three_songs(101); // user 101
+   sa.get_last_three_songs(102); // user 102
    sa.get_last_three_songs(200); // user with no songs
-
-
-
-
    cout << "\n---- More Plays (testing recency) ----" << endl;
-
-
    sa.play_song(s4, 101); // user 101 plays song 4
    sa.play_song(s2, 101); // user 101 plays song 2
-
-
-   sa.get_last_three_songs(101); // show updated recency
-
-
+   sa.get_last_three_songs(101); // updated recency
    return 0;
 }
 
