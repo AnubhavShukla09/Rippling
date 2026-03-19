@@ -1,88 +1,90 @@
-#include<unordered_map>
-#include<unordered_set>
-#include<vector>
-#include<iostream>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
+#include <iostream>
+#include <optional>
 using namespace std;
-
-
 class KeyValueStore {
 private:
-   unordered_map<string, string> store; // base key-value store
-   vector<unordered_map<string,string>> txstores; // stack of transaction stores (each layer stores updates)
-   vector<unordered_set<string>> deletedKeysStack; // stack of deleted keys per transaction layer
+   unordered_map<string, string> store; // main persistent store
+   vector<unordered_map<string, string>> txStores; // stack of transaction updates
+   vector<unordered_set<string>> deletedKeys; // stack of transaction deletions
 public:
-   // Time Complexity: O(T) where T = number of active transactions
-   string get(string key) {
-       // search from most recent transaction to oldest
-       for(int i = txstores.size()-1; i >= 0; i--) {
-           if(deletedKeysStack[i].count(key)) // if key deleted in this transaction layer
-               return "";
-           if(txstores[i].count(key)) // if key updated in this transaction layer
-               return txstores[i][key];
+   // Time Complexity: O(T) where T = number of transactions
+   optional<string> get(const string& key) {
+       // traverse from latest transaction → oldest
+       for(int i = txStores.size() - 1; i >= 0; i--) {
+           if(deletedKeys[i].count(key)) // if deleted in this layer
+               return nullopt;
+           auto it = txStores[i].find(key); // check updates in this layer
+           if(it != txStores[i].end())
+               return it->second;
        }
        if(store.count(key)) // fallback to base store
            return store[key];
-       return ""; // key does not exist
+       return nullopt;
    }
    // Time Complexity: O(1)
-   void set(string key, string value) {
-       if(!txstores.empty()) { // if inside a transaction
-           deletedKeysStack.back().erase(key); // undo delete if key was deleted earlier in this transaction
-           txstores.back()[key] = value; // update key in current transaction layer
+   void set(const string& key, const string& value) {
+       if(!txStores.empty()) { // inside transaction
+           int top = txStores.size() - 1;
+           deletedKeys[top].erase(key); // undo delete
+           txStores[top][key] = value; // update in current layer
        } else {
-           store[key] = value; // update directly in base store
+           store[key] = value; // directly update base store
        }
    }
    // Time Complexity: O(1)
-   void deleteKey(string key) {
-       if(!txstores.empty()) { // if inside transaction
-           txstores.back().erase(key); // remove from updates in current transaction
-           deletedKeysStack.back().insert(key); // mark as deleted in this transaction layer
+   void deleteKey(const string& key) {
+       if(!txStores.empty()) {
+           int top = txStores.size() - 1;
+           txStores[top].erase(key); // remove pending update
+           deletedKeys[top].insert(key); // mark deleted
        } else {
-           store.erase(key); // delete directly from base store
+           store.erase(key);
        }
    }
    // Time Complexity: O(1)
    void begin() {
-       txstores.push_back({}); // push new empty transaction layer
-       deletedKeysStack.push_back({}); // push empty deleted-key set for this transaction
+       txStores.push_back({}); // push new transaction layer
+       deletedKeys.push_back({});
    }
-   // Time Complexity: O(N) where N = number of modified keys in the current transaction
+   // Time Complexity: O(N)
    void commit() {
-       if(txstores.empty()) { // no active transaction
-           cout<<"Nothing to commit"<<endl;
+       if(txStores.empty()) {
+           cout << "Nothing to commit\n";
            return;
        }
-       auto currTx = txstores.back(); // get current transaction updates
-       auto currDeleted = deletedKeysStack.back(); // get keys deleted in this transaction
-       txstores.pop_back(); // remove current transaction layer
-       deletedKeysStack.pop_back(); // remove its deleted-key set
-       if(txstores.empty()) { // if this was the outermost transaction
-           for(auto &entry : currTx)
-               store[entry.first] = entry.second; // apply updates to base store
-           for(auto &key : currDeleted)
-               store.erase(key); // apply deletions to base store
-       } else { // merge changes into parent transaction
-           auto &parentTx = txstores.back(); // reference to parent transaction updates
-           auto &parentDeleted = deletedKeysStack.back(); // reference to parent deleted keys
-           for(auto &entry : currTx) {
-               parentDeleted.erase(entry.first); // undo delete in parent if needed
-               parentTx[entry.first] = entry.second; // propagate update to parent transaction
+       int top = txStores.size() - 1;
+       if(txStores.size() == 1) {
+           // commit to main store
+           for(auto &entry : txStores[top])
+               store[entry.first] = entry.second;
+           for(auto &key : deletedKeys[top])
+               store.erase(key);
+       } else {
+           // merge into parent layer
+           int parent = top - 1;
+           for(auto &entry : txStores[top]) {
+               deletedKeys[parent].erase(entry.first); // undo delete in parent
+               txStores[parent][entry.first] = entry.second; // update parent
            }
-           for(auto &key : currDeleted) {
-               parentTx.erase(key); // remove key from parent updates
-               parentDeleted.insert(key); // mark key deleted in parent transaction
+           for(auto &key : deletedKeys[top]) {
+               txStores[parent].erase(key); // remove pending update
+               deletedKeys[parent].insert(key); // mark deleted in parent
            }
        }
+       txStores.pop_back(); // remove current layer
+       deletedKeys.pop_back();
    }
    // Time Complexity: O(1)
    void rollback() {
-       if(txstores.empty()) { // no active transaction
-           cout<<"Not in transaction"<<endl;
+       if(txStores.empty()) {
+           cout << "Nothing to rollback\n";
            return;
        }
-       txstores.pop_back(); // discard current transaction updates
-       deletedKeysStack.pop_back(); // discard its deleted keys
+       txStores.pop_back(); // discard current layer
+       deletedKeys.pop_back();
    }
 };
 
